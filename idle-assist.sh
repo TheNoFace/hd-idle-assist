@@ -37,27 +37,6 @@ function is_active()
 	fi
 }
 
-function io_check()
-{
-	sdcLog=$(tac /var/log/syslog | grep "sdc" -m 1)
-	sddLog=$(tac /var/log/syslog | grep "sdd" -m 1)
-
-	sdcLength=$(echo ${sdcLog} | wc -m)
-	sddLength=$(echo ${sddLog} | wc -m)
-
-	# hd-idle init: 252 | spinup/down: 55/53 | default: about 220
-	if [[ ${sdcLength} -lt 100 ]] || [[ ${sdcLength} -gt 240 ]] || [[ ${sddLength} -lt 100 ]] || [[ ${sddLength} -gt 240 ]]
-	then
-		sleep 60
-		io_check
-	fi
-
-	sdcRead=$(echo "${sdcLog}" | grep -oP 'reads=\K[^ ]+')
-	sdcWrite=$(echo "${sdcLog}" | grep -oP 'writes=\K[^ ]+')
-	sddRead=$(echo "${sddLog}" | grep -oP 'reads=\K[^ ]+')
-	sddWrite=$(echo "${sddLog}" | grep -oP 'writes=\K[^ ]+')
-}
-
 function spin_check()
 {
 	sdcLog=$(tac /var/log/syslog | grep "sdc" -m 1)
