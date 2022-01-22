@@ -5,7 +5,7 @@
 # Now Downloader
 # Created on 2022 Jan 21
 # Author: TheNoFace (thenoface303@gmail.com)
-# Version 1.0.0
+# Version 1.0.1
 #
 #------------------------------------------------------------------
 
@@ -46,7 +46,7 @@ function spin_check()
 	sddLength=$(echo ${sddLog} | wc -m)
 
 	# hd-idle init: 252 | spinup/down: 55/53 | default: about 220
-	if [[ ${sdcLength} -lt 100 ]] || [[ ${sdcLength} -gt 240 ]] || [[ ${sddLength} -lt 100 ]] || [[ ${sddLength} -gt 240 ]]
+	if [[ ${sdcLength} -gt 240 ]] || [[ ${sddLength} -gt 240 ]]
 	then
 		msg "sdcLength: ${sdcLength} / sddLength: ${sddLength}"
 		msg "Wrong log, re-check in 60 seconds"
