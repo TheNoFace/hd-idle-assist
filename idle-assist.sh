@@ -5,7 +5,7 @@
 # hd-idle-assist
 # Created on 2022 Jan 21
 # Author: TheNoFace (thenoface303@gmail.com)
-# Version 1.0.1
+# Version 1.0.2
 #
 #------------------------------------------------------------------
 
@@ -17,6 +17,8 @@ then
 else
 	refreshInt=$1
 fi
+
+recheckInt=300 # Recheck after 5 minutes
 
 function msg()
 {
@@ -68,15 +70,17 @@ main()
 		spin_check
 		if [[ ${sdcSpinDown} == 'false' ]] || [[ ${sddSpinDown} == 'false' ]]
 		then
-			msg "hd-idle is still waiting for disk(s) to spindown, re-check in 60 seconds"
-			sleep 60
+			msg "hd-idle is still waiting for disk(s) to spindown, re-check in ${recheckInt} seconds"
+			sleep ${recheckInt}
 			main
 		fi
 
 		if [[ ${sdcStatus} != 'standby' ]] || [[ ${sddStatus} != 'standby' ]]
 		then
-			msg "Spin down disk(s) in 5 minutes"
-			sleep 300
+			msg "hd-idle didn't recognize disk spinup, re-check disk status in ${recheckInt} seconds"
+			sleep ${recheckInt}
+			is_active
+			spin_check
 		fi
 
 		if [[ ${sdcStatus} != 'standby' ]] && [[ ${sdcSpinDown} == 'true' ]]
