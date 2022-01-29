@@ -7,6 +7,11 @@
 # Author: TheNoFace (thenoface303@gmail.com)
 # Version 1.0.3
 #
+# TODO
+# 1. Check if the disk in under smartmontools tests and do not spin
+#    down the disk until the test is done
+# 2. Get user-defined disklist as an argunmet, not pre-defined ones
+#
 #------------------------------------------------------------------
 
 [[ $(id -u) != 0 ]] && echo "Do sudo!" && exit 255
@@ -67,13 +72,13 @@ function spin_check()
 	then
 		if [[ ${i} -lt 10 ]]
 		then
-			msg "Recheking disk status in 10 seconds..."
+			msg "Recheck hd-idle log in 10 seconds..."
 			sleep 10
 			((i++))
 			unset logError
 			spin_check
 		else
-			msg "ERROR: Spin recheck failed!"
+			msg "ERROR: hd-idle log recheck failed!"
 			exit 13
 		fi
 	fi
