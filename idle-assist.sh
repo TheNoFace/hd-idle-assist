@@ -31,7 +31,7 @@ function is_active()
 	sddStatus=$(hdparm -C /dev/sdd | awk 'FNR == 3 {print $4}')
 	msg "hdparm sdc: ${sdcStatus} / sdd: ${sddStatus}"
 
-	if [[ ${sdcStatus} != 'standby' ]] || [[ ${sddStatus} != 'standby' ]]
+	if [[ "${sdcStatus}" != 'standby' ]] || [[ "${sddStatus}" != 'standby' ]]
 	then
 		isActive=1
 	else
