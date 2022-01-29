@@ -5,7 +5,7 @@
 # hd-idle-assist
 # Created on 2022 Jan 21
 # Author: TheNoFace (thenoface303@gmail.com)
-# Version 1.0.2
+# Version 1.0.3
 #
 #------------------------------------------------------------------
 
@@ -44,21 +44,42 @@ function spin_check()
 	sdcLog=$(tac /var/log/syslog | grep "sdc" -m 1)
 	sddLog=$(tac /var/log/syslog | grep "sdd" -m 1)
 
-	sdcLength=$(echo ${sdcLog} | wc -m)
-	sddLength=$(echo ${sddLog} | wc -m)
-
-	# hd-idle init: 252 | spinup/down: 55/53 | default: about 220
-	if [[ ${sdcLength} -gt 240 ]] || [[ ${sddLength} -gt 240 ]]
-	then
-		msg "sdcLength: ${sdcLength} / sddLength: ${sddLength}"
-		msg "Wrong log, re-check in 60 seconds"
-		sleep 60
-		spin_check
-	fi
-
 	sdcSpinDown=$(tac /var/log/syslog | grep "sdc" -m 1 | grep -oP 'spunDown=\K[^ ]+')
 	sddSpinDown=$(tac /var/log/syslog | grep "sdd" -m 1 | grep -oP 'spunDown=\K[^ ]+')
+
+	case "${sdcSpinDown}" in
+		true|false)
+			;;
+		*)
+			msg "WARNING: Wrong status for sdc: ${sdcSpinDown}"
+			((logError++))
+	esac
+
+	case "${sddSpinDown}" in
+		true|false)
+			;;
+		*)
+			msg "WARNING: Wrong status for sdd: ${sddSpinDown}"
+			((logError++))
+	esac
+
+	if [[ ! -z ${logError} ]]
+	then
+		if [[ ${i} -lt 10 ]]
+		then
+			msg "Recheking disk status in 10 seconds..."
+			sleep 10
+			((i++))
+			unset logError
+			spin_check
+		else
+			msg "ERROR: Spin recheck failed!"
+			exit 13
+		fi
+	fi
+
 	msg "hd-idle spundown sdc: ${sdcSpinDown} / sdd: ${sddSpinDown}"
+	unset i
 }
 
 main()
