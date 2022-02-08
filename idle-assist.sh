@@ -46,14 +46,11 @@ function is_active()
 
 function spin_check()
 {
-	sdcLog=$(tac /var/log/syslog | grep "sdc" -m 1)
-	sddLog=$(tac /var/log/syslog | grep "sdd" -m 1)
-
 	sdcSpinDown=$(tac /var/log/syslog | grep "sdc" -m 1 | grep -oP 'spunDown=\K[^ ]+')
 	sddSpinDown=$(tac /var/log/syslog | grep "sdd" -m 1 | grep -oP 'spunDown=\K[^ ]+')
 
 	case "${sdcSpinDown}" in
-		true|false)
+		'true'|'false')
 			;;
 		*)
 			msg "WARNING: Wrong status for sdc: ${sdcSpinDown}"
@@ -61,7 +58,7 @@ function spin_check()
 	esac
 
 	case "${sddSpinDown}" in
-		true|false)
+		'true'|'false')
 			;;
 		*)
 			msg "WARNING: Wrong status for sdd: ${sddSpinDown}"
@@ -127,7 +124,7 @@ main()
 	then
 		sleep 60
 		main # loop
-		exit 12 #wrong exit
+		exit 12 # wrong exit
 	else
 		msg "ERROR: Unknown disk state sdc: ${sdcStatus} / sdd: ${sddStatus}"
 		exit 1
