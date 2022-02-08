@@ -8,9 +8,7 @@
 # Version 1.0.3
 #
 # TODO
-# 1. Check if the disk in under smartmontools tests and do not spin
-#    down the disk until the test is done
-# 2. Get user-defined disklist as an argunmet, not pre-defined ones
+# 1. Get user-defined disklist as an argunmet, not pre-defined ones
 #
 #------------------------------------------------------------------
 
@@ -24,10 +22,17 @@ else
 fi
 
 recheckInt=300 # Recheck after 5 minutes
+diskList=(sdc sdd)
 
 function msg()
 {
-	echo -e "[$(date +'%F %T')] $1"
+	echo "[$(date +'%F %T')] $*"
+}
+
+function is_empty()
+{
+	[[ -z "${1}" ]] && return 0
+	return 1
 }
 
 function is_active()
@@ -84,12 +89,41 @@ function spin_check()
 	unset i
 }
 
+function smartctl_check()
+{
+	local status=$(smartctl -c /dev/${1} | grep 'Self-test routine in progress...')
+	if ! is_empty "${status}"
+	then
+		return 1
+	fi
+}
+
 main()
 {
 	is_active
 	if [[ ! -z ${isActive} ]]
 	then
 		msg "Found active disk!"
+
+		for i in ${diskList[@]}
+		do
+			smartctl_check ${i}
+			returnCode=$?
+			if [[ ${returnCode} != 0 ]]
+			then
+				nowTesting=(${nowTesting[@]} ${i})
+				((smartTest++))
+			fi
+		done
+
+		if ! is_empty ${smartTest}
+		then
+			msg "Disk(s) under smartctl self-test: ${nowTesting[@]}, re-check in ${recheckInt} seconds"
+			sleep ${recheckInt}
+			unset nowTesting smartTest
+			main
+		fi
+
 		spin_check
 		if [[ ${sdcSpinDown} == 'false' ]] || [[ ${sddSpinDown} == 'false' ]]
 		then
