@@ -5,7 +5,6 @@
 # hd-idle-assist
 # Created on 2022 Jan 21
 # Author: TheNoFace (thenoface303@gmail.com)
-# Version 1.0.3
 #
 # TODO
 # 1. Get user-defined disklist as an argunmet, not pre-defined ones
