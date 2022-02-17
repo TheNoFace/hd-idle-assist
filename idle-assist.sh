@@ -36,61 +36,58 @@ function is_empty()
 
 function is_active()
 {
-	sdcStatus=$(hdparm -C /dev/sdc | awk 'FNR == 3 {print $4}')
-	sddStatus=$(hdparm -C /dev/sdd | awk 'FNR == 3 {print $4}')
-	msg "hdparm sdc: ${sdcStatus} / sdd: ${sddStatus}"
+	local status=$(hdparm -C /dev/$1 | awk 'FNR == 3 {print $4}')
 
-	if [[ "${sdcStatus}" != 'standby' ]] || [[ "${sddStatus}" != 'standby' ]]
+	if [[ "${status}" != 'standby' ]]
 	then
-		isActive=1
-	else
-		unset isActive
+		return 1
 	fi
 }
 
 function spin_check()
 {
-	sdcSpinDown=$(tac /var/log/syslog | grep "sdc" -m 1 | grep -oP 'spunDown=\K[^ ]+')
-	sddSpinDown=$(tac /var/log/syslog | grep "sdd" -m 1 | grep -oP 'spunDown=\K[^ ]+')
+	local status=$(tac /var/log/syslog | grep $1 -m 1 | grep -oP 'spunDown=\K[^ ]+')
 
-	case "${sdcSpinDown}" in
+	case "${status}" in
 		'true'|'false')
-			;;
+			if [[ "${status}" != 'true' ]]
+			then
+				return 1
+			else
+				return 0
+			fi ;;
 		*)
-			msg "WARNING: Wrong status for sdc: ${sdcSpinDown}"
-			((logError++))
+			msg "WARNING: Wrong status for [$1](${status})"
+			logError=1
 	esac
 
-	case "${sddSpinDown}" in
-		'true'|'false')
-			;;
-		*)
-			msg "WARNING: Wrong status for sdd: ${sddSpinDown}"
-			((logError++))
-	esac
-
-	if [[ ! -z ${logError} ]]
+	if [[ ${logError} != 0 ]]
 	then
 		if [[ ${i} -lt 10 ]]
 		then
-			msg "Recheck hd-idle log in 10 seconds..."
-			sleep 10
+			msg "Recheck hd-idle log in 30 seconds..."
+			sleep 30
 			((i++))
 			unset logError
-			spin_check
+			spin_check $1
 		else
 			msg "ERROR: hd-idle log recheck failed!"
-			exit 13
+			exit 10
 		fi
 	fi
-
-	msg "hd-idle spundown sdc: ${sdcSpinDown} / sdd: ${sddSpinDown}"
 	unset i
+}
+
+function into_idle()
+{
+	msg "Spinning down [$1]..."
+	hd-idle -t /dev/$1
 }
 
 function smartctl_check()
 {
 	local status=$(smartctl -c /dev/${1} | grep 'Self-test routine in progress...')
+
 	if ! is_empty "${status}"
 	then
 		return 1
@@ -99,72 +96,91 @@ function smartctl_check()
 
 main()
 {
-	is_active
-	if [[ ! -z ${isActive} ]]
-	then
-		msg "Found active disk!"
+	unset activeList spinList inTest anomalStatus
+	for i in ${diskList[@]}
+	do
+		is_active ${i}
+		isActive=$?
+		if [[ ${isActive} != 0 ]]
+		then
+			activeList=(${activeList[@]} ${i})
+		fi
+	done
 
+	if ! is_empty ${activeList[@]}
+	then
 		for i in ${diskList[@]}
 		do
 			smartctl_check ${i}
 			returnCode=$?
 			if [[ ${returnCode} != 0 ]]
 			then
-				nowTesting=(${nowTesting[@]} ${i})
-				((smartTest++))
+				inTest=(${inTest[@]} ${i})
 			fi
 		done
 
-		if ! is_empty ${smartTest}
+		if ! is_empty ${inTest[@]}
 		then
-			msg "Disk(s) under smartctl self-test: ${nowTesting[@]}, re-check in ${recheckInt} seconds"
-			sleep ${recheckInt}
-			unset nowTesting smartTest
-			main
-		fi
-
-		spin_check
-		if [[ ${sdcSpinDown} == 'false' ]] || [[ ${sddSpinDown} == 'false' ]]
-		then
-			msg "hd-idle is still waiting for disk(s) to spindown, re-check in ${recheckInt} seconds"
+			msg "Disk(s) under smartctl self-test: [${inTest[@]}], re-check in ${recheckInt} seconds"
 			sleep ${recheckInt}
 			main
 		fi
 
-		if [[ ${sdcStatus} != 'standby' ]] || [[ ${sddStatus} != 'standby' ]]
+		for i in ${diskList[@]}
+		do
+			spin_check ${i}
+			isSpin=$?
+			if [[ ${isSpin} != 0 ]]
+			then
+				spinList=(${spinList[@]} ${i})
+			fi
+		done
+
+		if [[ "${activeList[@]}" != "${spinList[@]}" ]]
 		then
-			msg "hd-idle didn't recognize disk spinup, re-check disk status in ${recheckInt} seconds"
+			# https://stackoverflow.com/a/16861932
+			anomalStatus=("${activeList[@]}")
+			for del in ${spinList[@]}
+			do
+				anomalStatus=(${anomalStatus[@]/${del}})
+			done
+
+			if is_empty ${isRecheck}
+			then
+				msg "Disk in idle queue: [${anomalStatus[@]}], re-check disk status in ${recheckInt} seconds"
+				sleep ${recheckInt}
+				isRecheck=1
+				main
+			elif ! is_empty ${isRecheck}
+			then
+				msg "Disk in idle queue: [${anomalStatus[@]}]"
+				for idle in ${anomalStatus[@]}
+				do
+					into_idle $idle
+				done
+			else
+				msg "ERROR: Unknown status for isRecheck(${isRecheck})"
+				exit 20
+			fi
+			unset activeList spinList anomalStatus isRecheck
+		elif [[ "${activeList[@]}" = "${spinList[@]}" ]]
+		then
+			msg "hd-idle is waiting for disk [${spinList[@]}] to spindown, re-check in ${recheckInt} seconds"
 			sleep ${recheckInt}
-			is_active
-			spin_check
-		fi
-
-		if [[ ${sdcStatus} != 'standby' ]] && [[ ${sdcSpinDown} == 'true' ]]
-		then
-			msg "Spinning down sdc..."
-			hd-idle -t /dev/sdc
-		fi
-
-		if [[ ${sddStatus} != 'standby' ]] && [[ ${sddSpinDown} == 'true' ]]
-		then
-			msg "Spinning down sdd..."
-			hd-idle -t /dev/sdd
 		fi
 
 		main # loop
-		exit 11 # wrong exit
-	elif [[ -z ${isActive} ]]
+		msg "ERROR: Exit 21" && exit 21 # wrong exit
+	elif is_empty ${activeList[@]}
 	then
-		sleep 60
+		msg "No active disk found"
+		sleep ${refreshInt}
 		main # loop
-		exit 12 # wrong exit
-	else
-		msg "ERROR: Unknown disk state sdc: ${sdcStatus} / sdd: ${sddStatus}"
-		exit 1
+		msg "ERROR: Exit 22" && exit 22 # wrong exit
 	fi
 }
 
-msg "Refresing every ${refreshInt}s"
+msg "Disk to check: [${diskList[@]}], refresing every ${refreshInt}s"
 main
 msg "ERROR: EOF"
-exit 10
+exit 255
