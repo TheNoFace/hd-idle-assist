@@ -180,6 +180,9 @@ main()
 	fi
 }
 
+ulimit -s unlimited
+msg "Stack size set to $(ulimit -s)"
+
 msg "Disk to check: [${diskList[@]}], refresing every ${refreshInt}s"
 main
 msg "ERROR: EOF"
